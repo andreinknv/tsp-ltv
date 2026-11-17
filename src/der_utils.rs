@@ -315,7 +315,7 @@ pub fn integer_bodies_equal(a: &[u8], b: &[u8]) -> bool {
 ///
 /// The string is checked to be ASCII before any indexing on the `&str`, so a
 /// multi-byte UTF-8 character cannot cause a mid-character slice panic.
-pub fn parse_generalized_time(body: &[u8]) -> Result<chrono::DateTime<chrono::Utc>, String> {
+pub fn parse_generalized_time(body: &[u8]) -> Result<jiff::Timestamp, String> {
     let s =
         std::str::from_utf8(body).map_err(|e| format!("GeneralizedTime: invalid UTF-8: {e}"))?;
 
@@ -344,13 +344,13 @@ pub fn parse_generalized_time(body: &[u8]) -> Result<chrono::DateTime<chrono::Ut
     let min: u32 = s[10..12].parse().map_err(|e| format!("minute: {e}"))?;
     let sec: u32 = s[12..14].parse().map_err(|e| format!("second: {e}"))?;
 
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
-    let date = NaiveDate::from_ymd_opt(year, month, day)
-        .ok_or_else(|| format!("invalid date: {year}-{month}-{day}"))?;
-    let time = NaiveTime::from_hms_opt(hour, min, sec)
-        .ok_or_else(|| format!("invalid time: {hour}:{min}:{sec}"))?;
-    let dt = NaiveDateTime::new(date, time);
-    Ok(chrono::Utc.from_utc_datetime(&dt))
+    let date = jiff::civil::Date::new(year as i16, month as i8, day as i8)
+        .map_err(|_| format!("invalid date: {year}-{month}-{day}"))?;
+    let time = jiff::civil::Time::new(hour as i8, min as i8, sec as i8, 0)
+        .map_err(|_| format!("invalid time: {hour}:{min}:{sec}"))?;
+    jiff::tz::Offset::UTC
+        .to_timestamp(date.to_datetime(time))
+        .map_err(|error| error.to_string())
 }
 
 /// Parse a DER-encoded UTCTime body (no tag/length) to a chrono DateTime.
@@ -361,7 +361,7 @@ pub fn parse_generalized_time(body: &[u8]) -> Result<chrono::DateTime<chrono::Ut
 ///
 /// The string is checked to be ASCII before any indexing on the `&str`, so a
 /// multi-byte UTF-8 character cannot cause a mid-character slice panic.
-pub fn parse_utc_time(body: &[u8]) -> Result<chrono::DateTime<chrono::Utc>, String> {
+pub fn parse_utc_time(body: &[u8]) -> Result<jiff::Timestamp, String> {
     let s = std::str::from_utf8(body).map_err(|e| format!("UTCTime: invalid UTF-8: {e}"))?;
 
     if !s.is_ascii() {
@@ -383,18 +383,18 @@ pub fn parse_utc_time(body: &[u8]) -> Result<chrono::DateTime<chrono::Utc>, Stri
     let min: u32 = s[8..10].parse().map_err(|e| format!("minute: {e}"))?;
     let sec: u32 = s[10..12].parse().map_err(|e| format!("second: {e}"))?;
 
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
-    let date = NaiveDate::from_ymd_opt(year, month, day)
-        .ok_or_else(|| format!("invalid date: {year}-{month}-{day}"))?;
-    let time = NaiveTime::from_hms_opt(hour, min, sec)
-        .ok_or_else(|| format!("invalid time: {hour}:{min}:{sec}"))?;
-    let dt = NaiveDateTime::new(date, time);
-    Ok(chrono::Utc.from_utc_datetime(&dt))
+    let date = jiff::civil::Date::new(year as i16, month as i8, day as i8)
+        .map_err(|_| format!("invalid date: {year}-{month}-{day}"))?;
+    let time = jiff::civil::Time::new(hour as i8, min as i8, sec as i8, 0)
+        .map_err(|_| format!("invalid time: {hour}:{min}:{sec}"))?;
+    jiff::tz::Offset::UTC
+        .to_timestamp(date.to_datetime(time))
+        .map_err(|error| error.to_string())
 }
 
 /// Parse a time value that could be either UTCTime (tag 0x17) or
 /// GeneralizedTime (tag 0x18).
-pub fn parse_x509_time(tag: u8, body: &[u8]) -> Result<chrono::DateTime<chrono::Utc>, String> {
+pub fn parse_x509_time(tag: u8, body: &[u8]) -> Result<jiff::Timestamp, String> {
     match tag {
         0x17 => parse_utc_time(body),
         0x18 => parse_generalized_time(body),
@@ -411,6 +411,7 @@ pub fn parse_x509_time(tag: u8, body: &[u8]) -> Result<chrono::DateTime<chrono::
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::datetime::Rfc3339 as _;
 
     #[test]
     fn test_tlv_roundtrip() {

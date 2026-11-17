@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Changed
+
+- **Breaking:** replace `chrono`, which RUSTSEC-2026-0543 marks unmaintained,
+  with `jiff` 1. Instants in the public API are now `jiff::Timestamp`: the
+  `der_utils::parse_*_time` results, `RevokedEntry`, `ParsedCrl`,
+  `SingleResponse`, `ParsedBasicOcspResponse`, `CertStatus::Revoked`,
+  `ValidationStatus` and the `validation_time` parameters. `CrlFreshness` and
+  `OcspFreshness` use `jiff::SignedDuration`. DER time parsing,
+  GeneralizedTime output and all validity comparisons are unchanged. `Display`
+  and error messages now show times in RFC 3339 form (`2026-03-01T00:00:00Z`
+  rather than `2026-03-01 00:00:00 UTC`) and durations in ISO 8601 form
+  (`PT24H` rather than `PT86400S`).
+
 ## 0.6.1 [2026-11-09]
 
 ### Security
